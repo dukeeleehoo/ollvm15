@@ -16,8 +16,9 @@ jobs:
 
     - name: Clone Hikari-LLVM15 Source
       run: |
-        git clone https://github.com/HikariObfuscator/Hikari-LLVM15
-        cd Hikari-LLVM15
+        git clone https://github.com/HikariObfuscator/Hikari-LLVM15 || \
+        git clone https://github.com/61bcdefg/Hikari-LLVM15 || \
+        git clone https://gitee.com/SSSSS/Hikari-LLVM15
 
     - name: Configure CMake
       run: |
@@ -41,14 +42,10 @@ jobs:
       run: |
         cd Hikari-LLVM15/build
         mkdir -p ollvm-toolchain/bin
-        mkdir -p ollvm-toolchain/lib
-        mkdir -p ollvm-toolchain/include
-        
         cp bin/clang-15 ollvm-toolchain/bin/
         cp bin/clang ollvm-toolchain/bin/
         cp bin/clang++ ollvm-toolchain/bin/
         cp bin/clang-cl ollvm-toolchain/bin/
-        
         tar -czf ../ollvm-toolchain.tar.gz ollvm-toolchain
 
     - name: Upload Artifacts
