@@ -16,13 +16,12 @@ jobs:
 
     - name: Clone Hikari-LLVM15 Source
       run: |
-        git clone https://github.com/GreenDamTan/llvm_ollvm
-        cd llvm_ollvm
-        git checkout llvm-15.0.2
+        git clone -b llvm-15.0.2 https://github.com/nkhmelni/Hikari-LLVM.git
+        cd Hikari-LLVM
 
     - name: Configure CMake
       run: |
-        cd llvm_ollvm
+        cd Hikari-LLVM
         mkdir build && cd build
         cmake -G Ninja \
           -DCMAKE_BUILD_TYPE=Release \
@@ -35,12 +34,12 @@ jobs:
 
     - name: Build Clang
       run: |
-        cd llvm_ollvm/build
+        cd Hikari-LLVM/build
         ninja clang
 
     - name: Package for Windows
       run: |
-        cd llvm_ollvm/build
+        cd Hikari-LLVM/build
         mkdir -p ollvm-toolchain/bin
         cp bin/clang-15 ollvm-toolchain/bin/
         cp bin/clang ollvm-toolchain/bin/
@@ -52,4 +51,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: hikari-llvm15-toolchain
-        path: llvm_ollvm/build/ollvm-toolchain.tar.gz
+        path: Hikari-LLVM/build/ollvm-toolchain.tar.gz
