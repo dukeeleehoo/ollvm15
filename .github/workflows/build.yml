@@ -1,4 +1,4 @@
-name: Build Hikari-LLVM15 Toolchain for Windows
+name: Build Hikari-LLVM15 Toolchain for Windows (Stable)
 
 on:
   workflow_dispatch:
@@ -7,42 +7,42 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     steps:
     - name: Install Dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y ninja-build cmake git lld clang
 
-    - name: Clone Hikari-LLVM15 Source
+    - name: Clone Hikari-LLVM15 Source (from mirror)
       run: |
-        git clone -b llvm-15.0.2 https://github.com/nkhmelni/Hikari-LLVM.git
-        cd Hikari-LLVM
+        git clone --depth=1 --branch master https://github.com/HikariObfuscator/Hikari-LLVM15
+        cd Hikari-LLVM15
+        echo "Source cloned successfully"
 
     - name: Configure CMake
       run: |
-        cd Hikari-LLVM
+        cd Hikari-LLVM15
         mkdir build && cd build
         cmake -G Ninja \
           -DCMAKE_BUILD_TYPE=Release \
           -DLLVM_ENABLE_PROJECTS="clang" \
           -DLLVM_TARGETS_TO_BUILD="X86" \
-          -DLLVM_ENABLE_NEW_PASS_MANAGER=OFF \
+          -DLLVM_USE_LINKER=lld \
           -DCMAKE_C_COMPILER=clang \
           -DCMAKE_CXX_COMPILER=clang++ \
           ../llvm
 
     - name: Build Clang
       run: |
-        cd Hikari-LLVM/build
-        ninja clang
+        cd Hikari-LLVM15/build
+        ninja -j 2 clang
 
     - name: Package for Windows
       run: |
-        cd Hikari-LLVM/build
+        cd Hikari-LLVM15/build
         mkdir -p ollvm-toolchain/bin
-        cp bin/clang-15 ollvm-toolchain/bin/
-        cp bin/clang ollvm-toolchain/bin/
+        cp bin/clang-15 ollvm-toolchain/bin/ 2>/dev/null || cp bin/clang ollvm-toolchain/bin/
         cp bin/clang++ ollvm-toolchain/bin/
         cp bin/clang-cl ollvm-toolchain/bin/
         tar -czf ../ollvm-toolchain.tar.gz ollvm-toolchain
@@ -51,4 +51,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: hikari-llvm15-toolchain
-        path: Hikari-LLVM/build/ollvm-toolchain.tar.gz
+        path: Hikari-LLVM15/build/ollvm-toolchain.tar.gz
