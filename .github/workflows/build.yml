@@ -1,4 +1,4 @@
-name: Build Hikari-LLVM15 Toolchain
+name: Build OLLVM 21 Full-Feature Toolchain
 
 on:
   workflow_dispatch:
@@ -14,53 +14,42 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y ninja-build cmake git clang lld
 
-    - name: Clone Hikari-LLVM15 source
+    - name: Clone OLLVM 21 source (lux-QAQ)
       run: |
-        git clone https://github.com/HikariObfuscator/Hikari-LLVM15 llvm-project
+        git clone -b ollvm-21 https://github.com/lux-QAQ/ollvm-clang21.0.git llvm-project
         cd llvm-project
         git rev-parse HEAD > ../commit_hash.txt
         cd ..
 
     - name: Configure CMake
       run: |
-        cd llvm-project/llvm
+        cd llvm-project
         mkdir build && cd build
         cmake -G Ninja \
           -DCMAKE_BUILD_TYPE=Release \
           -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" \
           -DLLVM_TARGETS_TO_BUILD="X86" \
-          -DLLVM_ENABLE_NEW_PASS_MANAGER=OFF \
-          -DLLVM_ENABLE_LIBCXX=ON \
-          -DCMAKE_C_COMPILER=clang \
-          -DCMAKE_CXX_COMPILER=clang++ \
           ..
 
     - name: Build Clang
       run: |
-        cd llvm-project/llvm/build
+        cd llvm-project/build
         ninja clang
 
     - name: Package toolchain
       run: |
-        cd llvm-project/llvm/build
+        cd llvm-project/build
         mkdir -p ollvm-toolchain/bin
-        mkdir -p ollvm-toolchain/lib
-        mkdir -p ollvm-toolchain/include
-        cp bin/clang-15 ollvm-toolchain/bin/
         cp bin/clang ollvm-toolchain/bin/
         cp bin/clang++ ollvm-toolchain/bin/
         cp bin/clang-cl ollvm-toolchain/bin/
         cp bin/lld ollvm-toolchain/bin/
         cp bin/llvm-ar ollvm-toolchain/bin/
         cp bin/llvm-ranlib ollvm-toolchain/bin/
-        cp bin/llvm-strip ollvm-toolchain/bin/
-        cp lib/libc++.a ollvm-toolchain/lib/
-        cp lib/libc++abi.a ollvm-toolchain/lib/
-        cp -r ../../libcxx/include/* ollvm-toolchain/include/
-        tar -czf ../ollvm-toolchain.tar.gz ollvm-toolchain
+        tar -czf ollvm-toolchain.tar.gz ollvm-toolchain
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: hikari-llvm15-toolchain
-        path: llvm-project/llvm/build/ollvm-toolchain.tar.gz
+        name: ollvm-21-full-toolchain
+        path: llvm-project/build/ollvm-toolchain.tar.gz
