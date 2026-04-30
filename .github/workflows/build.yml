@@ -12,16 +12,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ninja-build cmake git lld-15 clang-15
 
-      - name: Checkout Hikari Source
+      - name: Checkout Hikari-LLVM15
         uses: actions/checkout@v4
         with:
-          repository: HikariObfuscator/Hikari
-          ref: llvm-15                # 这个分支确实存在
-          path: Hikari
+          repository: 61bcdefg/Hikari-LLVM15
+          ref: main                    # 该仓库主分支就是 LLVM 15 版本
+          path: Hikari-LLVM15
 
       - name: Build Hikari
         run: |
-          cd Hikari                    # 源码就在根目录
+          cd Hikari-LLVM15             # 源码在根目录
           mkdir build && cd build
           cmake -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
@@ -35,15 +35,15 @@ jobs:
 
       - name: Package Artifact
         run: |
-          mkdir -p Hikari-toolchain/bin
-          cp Hikari/build/bin/clang Hikari-toolchain/bin/
-          cp Hikari/build/bin/clang++ Hikari-toolchain/bin/
-          cp Hikari/build/bin/clang-cl Hikari-toolchain/bin/
-          tar -czf Hikari-toolchain.tar.gz Hikari-toolchain
+          mkdir -p Hikari15-toolchain/bin
+          cp Hikari-LLVM15/build/bin/clang      Hikari15-toolchain/bin/
+          cp Hikari-LLVM15/build/bin/clang++    Hikari15-toolchain/bin/
+          cp Hikari-LLVM15/build/bin/clang-cl   Hikari15-toolchain/bin/
+          tar -czf Hikari15-toolchain.tar.gz Hikari15-toolchain
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Hikari-toolchain
-          path: Hikari-toolchain.tar.gz
+          name: Hikari15-toolchain
+          path: Hikari15-toolchain.tar.gz
           if-no-files-found: error
