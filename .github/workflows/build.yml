@@ -1,4 +1,4 @@
-name: Build OLLVM-21 (Windows)
+name: Build Polaris Obfuscator (Windows)
 
 on:
   workflow_dispatch:
@@ -6,61 +6,66 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      LLVM_VERSION: 16.0.6
     steps:
       - name: Install Build Tools and LLVM
         shell: powershell
         run: |
-          # 1. 安装基础构建工具 (覆盖已知的 choco 警告坑)
+          # 1. 安装 Ninja 和 CMake
           choco install ninja cmake -y --no-progress --ignore-checksums
           refreshenv
 
-          # 2. 使用 winget 安装 LLVM (放弃不稳定的手动下载，一劳永逸)
-          # 这会自动处理下载、安装和 PATH 配置，完美避开连接中断问题。
-          Write-Host "正在通过 winget 安装 LLVM (此过程需要几分钟)..."
-          winget install --id=LLVM.LLVM -e --accept-source-agreements --accept-package-agreements
-          
-          # 3. 刷新环境变量，确保所有后续步骤都能找到 clang/clang++ 等工具
-          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-          
-          # 验证安装
-          clang --version
+          # 2. 下载 LLVM 16.0.6 安装包
+          $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$env:LLVM_VERSION/LLVM-$env:LLVM_VERSION-win64.exe"
+          $output = "$env:RUNNER_TEMP\LLVM.exe"
+          Invoke-WebRequest -Uri $url -OutFile $output
 
-      - name: Checkout OLLVM-21 Source
+          # 3. 静默安装到 C:\Program Files\LLVM
+          Start-Process -Wait -FilePath $output -ArgumentList "/S","/D=C:\Program Files\LLVM"
+
+          # 4. 将 LLVM bin 目录添加到 PATH（永久 + 当前会话）
+          "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $env:Path = "C:\Program Files\LLVM\bin;" + `
+            [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + `
+            [System.Environment]::GetEnvironmentVariable("Path","User")
+
+      - name: Checkout Polaris Source
         uses: actions/checkout@v4
         with:
-          repository: lux-QAQ/ollvm-clang21.0
-          path: ollvm-clang21.0
+          repository: za233/Polaris-Obfuscator
+          path: Polaris-Obfuscator
 
-      - name: Build OLLVM-21
-        working-directory: ollvm-clang21.0
+      - name: Build Polaris
+        working-directory: Polaris-Obfuscator\src
         run: |
           mkdir build
           cd build
           cmake -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
-            -DLLVM_ENABLE_PROJECTS="clang" `
+            -DLLVM_ENABLE_ASSERTIONS=Off `
+            -DLLVM_ENABLE_PROJECTS="clang;lld" `
             -DLLVM_TARGETS_TO_BUILD="X86" `
             -DCMAKE_C_COMPILER=clang `
             -DCMAKE_CXX_COMPILER=clang++ `
-            -DCMAKE_LINKER=lld `
             -DCMAKE_SYSTEM_NAME=Windows `
-            # [新增] 绕过原子操作检查 (覆盖“libatomic”的坑)
             -DHAVE_CXX_ATOMICS_WITHOUT_LIB=TRUE `
             -DHAVE_CXX_ATOMICS64_WITHOUT_LIB=TRUE `
             ..\llvm
-          ninja clang
+          ninja clang lld
 
       - name: Package Artifact
         run: |
-          mkdir ollvm21-toolchain\bin
-          copy ollvm-clang21.0\build\bin\clang.exe        ollvm21-toolchain\bin\clang.exe
-          copy ollvm-clang21.0\build\bin\clang++.exe      ollvm21-toolchain\bin\clang++.exe
-          copy ollvm-clang21.0\build\bin\clang-cl.exe     ollvm21-toolchain\bin\clang-cl.exe
-          7z a ollvm21-toolchain.zip ollvm21-toolchain
+          mkdir Polaris-toolchain\bin
+          copy Polaris-Obfuscator\src\build\bin\clang.exe Polaris-toolchain\bin\clang.exe
+          copy Polaris-Obfuscator\src\build\bin\clang++.exe Polaris-toolchain\bin\clang++.exe
+          copy Polaris-Obfuscator\src\build\bin\clang-cl.exe Polaris-toolchain\bin\clang-cl.exe
+          copy Polaris-Obfuscator\src\build\bin\lld.exe Polaris-toolchain\bin\lld.exe
+          7z a polaris-toolchain.zip Polaris-toolchain
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ollvm21-toolchain-win64
-          path: ollvm21-toolchain.zip
+          name: polaris-toolchain-win64
+          path: polaris-toolchain.zip
           if-no-files-found: error
