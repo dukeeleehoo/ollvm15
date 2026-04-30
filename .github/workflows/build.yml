@@ -1,42 +1,52 @@
-name: Build OLLVM-21 (Windows)
+name: Build Hikari-LLVM15 Toolchain for Windows
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
   build:
-    runs-on: windows-latest
-    env:
-      LLVM_VERSION: 21.1.0
+    # 使用 windows-2019 镜像，自带 VS 2019，稳定兼容 LLVM 15
+    runs-on: windows-2019
+
     steps:
-      - name: Install Build Tools and LLVM
+      - name: Install Build Tools & LLVM 15 (Host Compiler)
         shell: powershell
         run: |
+          # 1. 安装 Ninja、CMake
           choco install ninja cmake -y --no-progress --ignore-checksums
           refreshenv
-          $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$env:LLVM_VERSION/LLVM-$env:LLVM_VERSION-win64.exe"
+
+          # 2. 下载 LLVM 15.0.2 预编译包作为 host compiler
+          $llvm_version = "15.0.2"
+          $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$llvm_version/LLVM-$llvm_version-win64.exe"
           $output = "$env:RUNNER_TEMP\LLVM.exe"
           Invoke-WebRequest -Uri $url -OutFile $output
           Start-Process -Wait -FilePath $output -ArgumentList "/S","/D=C:\Program Files\LLVM"
+
+          # 3. 永久添加到 PATH，并在当前会话生效
           "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           $env:Path = "C:\Program Files\LLVM\bin;" + `
             [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + `
             [System.Environment]::GetEnvironmentVariable("Path","User")
 
-      # 激活 VS 2022 开发环境（windows-latest 自带），确保 CMake 能找到所有 MSVC 工具
-      - name: Setup VS 2022 Build Environment
+      # 激活 VS 2019 构建环境，提供 mt.exe、rc.exe 等工具
+      - name: Setup VS 2019 Build Environment
         uses: ilammy/msvc-dev-cmd@v1
         with:
-          arch: x64          # 不指定 vsversion 则自动使用最新安装的 VS，即 2022
+          vsversion: "2019"
+          arch: x64
 
-      - name: Checkout OLLVM-21 Source
+      - name: Checkout Hikari-LLVM15 Source
         uses: actions/checkout@v4
         with:
-          repository: lux-QAQ/ollvm-clang21.0
-          path: ollvm-clang21.0
+          repository: nkhmelni/Hikari-LLVM
+          ref: llvm-15.0.2
+          path: Hikari-LLVM
 
-      - name: Build OLLVM-21
-        working-directory: ollvm-clang21.0
+      - name: Configure CMake
+        working-directory: Hikari-LLVM
         run: |
           mkdir build
           cd build
@@ -44,24 +54,31 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release `
             -DLLVM_ENABLE_PROJECTS="clang" `
             -DLLVM_TARGETS_TO_BUILD="X86" `
+            -DLLVM_ENABLE_NEW_PASS_MANAGER=OFF `
             -DCMAKE_C_COMPILER=clang-cl `
             -DCMAKE_CXX_COMPILER=clang-cl `
             -DCMAKE_LINKER=lld-link `
             -DCMAKE_SYSTEM_NAME=Windows `
+            -DHAVE_CXX_ATOMICS_WITHOUT_LIB=TRUE `
+            -DHAVE_CXX_ATOMICS64_WITHOUT_LIB=TRUE `
             ..\llvm
+
+      - name: Build Clang
+        working-directory: Hikari-LLVM\build
+        run: |
           ninja clang
 
-      - name: Package Artifact
+      - name: Package for Windows
         run: |
-          mkdir ollvm21-toolchain\bin
-          copy ollvm-clang21.0\build\bin\clang.exe      ollvm21-toolchain\bin\clang.exe
-          copy ollvm-clang21.0\build\bin\clang++.exe    ollvm21-toolchain\bin\clang++.exe
-          copy ollvm-clang21.0\build\bin\clang-cl.exe   ollvm21-toolchain\bin\clang-cl.exe
-          7z a ollvm21-toolchain.zip ollvm21-toolchain
+          mkdir ollvm-toolchain\bin
+          copy Hikari-LLVM\build\bin\clang.exe ollvm-toolchain\bin\clang.exe
+          copy Hikari-LLVM\build\bin\clang++.exe ollvm-toolchain\bin\clang++.exe
+          copy Hikari-LLVM\build\bin\clang-cl.exe ollvm-toolchain\bin\clang-cl.exe
+          7z a ollvm-toolchain.zip ollvm-toolchain
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ollvm21-toolchain-win64
-          path: ollvm21-toolchain.zip
+          name: hikari-llvm15-toolchain-win64
+          path: ollvm-toolchain.zip
           if-no-files-found: error
