@@ -1,4 +1,4 @@
-name: Build Polaris Obfuscator (Windows)
+name: Build OLLVM-21 (Windows)
 
 on:
   workflow_dispatch:
@@ -7,65 +7,61 @@ jobs:
   build:
     runs-on: windows-latest
     env:
-      LLVM_VERSION: 16.0.6
+      LLVM_VERSION: 21.1.0
     steps:
       - name: Install Build Tools and LLVM
         shell: powershell
         run: |
-          # 1. 安装 Ninja 和 CMake
           choco install ninja cmake -y --no-progress --ignore-checksums
           refreshenv
-
-          # 2. 下载 LLVM 16.0.6 安装包
           $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$env:LLVM_VERSION/LLVM-$env:LLVM_VERSION-win64.exe"
           $output = "$env:RUNNER_TEMP\LLVM.exe"
           Invoke-WebRequest -Uri $url -OutFile $output
-
-          # 3. 静默安装到 C:\Program Files\LLVM
           Start-Process -Wait -FilePath $output -ArgumentList "/S","/D=C:\Program Files\LLVM"
-
-          # 4. 将 LLVM bin 目录添加到 PATH（永久 + 当前会话）
           "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           $env:Path = "C:\Program Files\LLVM\bin;" + `
             [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + `
             [System.Environment]::GetEnvironmentVariable("Path","User")
 
-      - name: Checkout Polaris Source
+      # 激活 VS 2022 开发环境（windows-latest 自带），确保 CMake 能找到所有 MSVC 工具
+      - name: Setup VS 2022 Build Environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64          # 不指定 vsversion 则自动使用最新安装的 VS，即 2022
+
+      - name: Checkout OLLVM-21 Source
         uses: actions/checkout@v4
         with:
-          repository: za233/Polaris-Obfuscator
-          path: Polaris-Obfuscator
+          repository: lux-QAQ/ollvm-clang21.0
+          path: ollvm-clang21.0
 
-      - name: Build Polaris
-        working-directory: Polaris-Obfuscator\src
+      - name: Build OLLVM-21
+        working-directory: ollvm-clang21.0
         run: |
           mkdir build
           cd build
           cmake -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
-            -DLLVM_ENABLE_ASSERTIONS=Off `
-            -DLLVM_ENABLE_PROJECTS="clang;lld" `
+            -DLLVM_ENABLE_PROJECTS="clang" `
             -DLLVM_TARGETS_TO_BUILD="X86" `
-            -DCMAKE_C_COMPILER=clang `
-            -DCMAKE_CXX_COMPILER=clang++ `
+            -DCMAKE_C_COMPILER=clang-cl `
+            -DCMAKE_CXX_COMPILER=clang-cl `
+            -DCMAKE_LINKER=lld-link `
             -DCMAKE_SYSTEM_NAME=Windows `
-            -DHAVE_CXX_ATOMICS_WITHOUT_LIB=TRUE `
-            -DHAVE_CXX_ATOMICS64_WITHOUT_LIB=TRUE `
             ..\llvm
-          ninja clang lld
+          ninja clang
 
       - name: Package Artifact
         run: |
-          mkdir Polaris-toolchain\bin
-          copy Polaris-Obfuscator\src\build\bin\clang.exe Polaris-toolchain\bin\clang.exe
-          copy Polaris-Obfuscator\src\build\bin\clang++.exe Polaris-toolchain\bin\clang++.exe
-          copy Polaris-Obfuscator\src\build\bin\clang-cl.exe Polaris-toolchain\bin\clang-cl.exe
-          copy Polaris-Obfuscator\src\build\bin\lld.exe Polaris-toolchain\bin\lld.exe
-          7z a polaris-toolchain.zip Polaris-toolchain
+          mkdir ollvm21-toolchain\bin
+          copy ollvm-clang21.0\build\bin\clang.exe      ollvm21-toolchain\bin\clang.exe
+          copy ollvm-clang21.0\build\bin\clang++.exe    ollvm21-toolchain\bin\clang++.exe
+          copy ollvm-clang21.0\build\bin\clang-cl.exe   ollvm21-toolchain\bin\clang-cl.exe
+          7z a ollvm21-toolchain.zip ollvm21-toolchain
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: polaris-toolchain-win64
-          path: polaris-toolchain.zip
+          name: ollvm21-toolchain-win64
+          path: ollvm21-toolchain.zip
           if-no-files-found: error
