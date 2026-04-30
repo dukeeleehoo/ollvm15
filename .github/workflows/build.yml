@@ -6,30 +6,24 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    env:
-      LLVM_VERSION: 21.0.0
     steps:
       - name: Install Build Tools and LLVM
-        run: |
-          # 安装 Ninja 和 CMake（忽略重复安装警告）
-          choco install ninja cmake -y --no-progress --ignore-checksums
-
-          # 刷新环境变量，确保 cmake、ninja 可直接使用
-          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-
-          # 构造 LLVM 下载 URL 与安装包路径
-          $llvm_url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$env:LLVM_VERSION/LLVM-$env:LLVM_VERSION-win64.exe"
-          $llvm_installer = "$env:RUNNER_TEMP\LLVM.exe"
-
-          # 下载 LLVM 安装包
-          Invoke-WebRequest -Uri $llvm_url -OutFile $llvm_installer
-
-          # 静默安装到 C:\Program Files\LLVM
-          Start-Process -Wait -FilePath $llvm_installer -ArgumentList "/S","/D=C:\Program Files\LLVM"
-
-          # 将 LLVM bin 目录添加到后续步骤的 PATH
-          "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         shell: powershell
+        run: |
+          # 1. 安装基础构建工具 (覆盖已知的 choco 警告坑)
+          choco install ninja cmake -y --no-progress --ignore-checksums
+          refreshenv
+
+          # 2. 使用 winget 安装 LLVM (放弃不稳定的手动下载，一劳永逸)
+          # 这会自动处理下载、安装和 PATH 配置，完美避开连接中断问题。
+          Write-Host "正在通过 winget 安装 LLVM (此过程需要几分钟)..."
+          winget install --id=LLVM.LLVM -e --accept-source-agreements --accept-package-agreements
+          
+          # 3. 刷新环境变量，确保所有后续步骤都能找到 clang/clang++ 等工具
+          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+          
+          # 验证安装
+          clang --version
 
       - name: Checkout OLLVM-21 Source
         uses: actions/checkout@v4
@@ -50,6 +44,9 @@ jobs:
             -DCMAKE_CXX_COMPILER=clang++ `
             -DCMAKE_LINKER=lld `
             -DCMAKE_SYSTEM_NAME=Windows `
+            # [新增] 绕过原子操作检查 (覆盖“libatomic”的坑)
+            -DHAVE_CXX_ATOMICS_WITHOUT_LIB=TRUE `
+            -DHAVE_CXX_ATOMICS64_WITHOUT_LIB=TRUE `
             ..\llvm
           ninja clang
 
