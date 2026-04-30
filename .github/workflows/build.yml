@@ -1,4 +1,4 @@
-name: Build OLLVM-15 (yangyiyu08/ollvm-project)
+name: Build Hikari-LLVM15
 
 on:
   workflow_dispatch:
@@ -12,16 +12,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ninja-build cmake git lld-15 clang-15
 
-      - name: Checkout OLLVM Source
+      - name: Checkout Hikari Source
         uses: actions/checkout@v4
         with:
-          repository: yangyiyu08/ollvm-project
-          ref: llvm-15.x               # 该仓库确实存在此分支
-          path: ollvm-project
+          repository: HikariObfuscator/Hikari
+          ref: llvm-15                # 这个分支确实存在
+          path: Hikari
 
-      - name: Build OLLVM
+      - name: Build Hikari
         run: |
-          cd ollvm-project            # 源码在根目录
+          cd Hikari                    # 源码就在根目录
           mkdir build && cd build
           cmake -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
@@ -30,20 +30,20 @@ jobs:
             -DLLVM_USE_LINKER=lld \
             -DCMAKE_C_COMPILER=clang-15 \
             -DCMAKE_CXX_COMPILER=clang++-15 \
-            ../llvm                   # 正确指向根目录下的 llvm 文件夹
+            ../llvm
           ninja -j $(nproc) clang
 
       - name: Package Artifact
         run: |
-          mkdir -p ollvm15-toolchain/bin
-          cp ollvm-project/build/bin/clang ollvm15-toolchain/bin/
-          cp ollvm-project/build/bin/clang++ ollvm15-toolchain/bin/
-          cp ollvm-project/build/bin/clang-cl ollvm15-toolchain/bin/
-          tar -czf ollvm15-toolchain.tar.gz ollvm15-toolchain
+          mkdir -p Hikari-toolchain/bin
+          cp Hikari/build/bin/clang Hikari-toolchain/bin/
+          cp Hikari/build/bin/clang++ Hikari-toolchain/bin/
+          cp Hikari/build/bin/clang-cl Hikari-toolchain/bin/
+          tar -czf Hikari-toolchain.tar.gz Hikari-toolchain
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ollvm15-toolchain
-          path: ollvm15-toolchain.tar.gz
+          name: Hikari-toolchain
+          path: Hikari-toolchain.tar.gz
           if-no-files-found: error
