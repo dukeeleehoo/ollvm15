@@ -1,4 +1,4 @@
-name: Build Hikari-LLVM15
+name: Build OLLVM-21 (Full)
 
 on:
   workflow_dispatch:
@@ -10,40 +10,41 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build cmake git lld-15 clang-15
+          sudo apt-get install -y ninja-build cmake git lld clang
 
-      - name: Checkout Hikari-LLVM15
+      - name: Checkout OLLVM-21 Source
         uses: actions/checkout@v4
         with:
-          repository: 61bcdefg/Hikari-LLVM15
-          ref: main                    # 该仓库主分支就是 LLVM 15 版本
-          path: Hikari-LLVM15
+          repository: lux-QAQ/ollvm-clang21.0
+          # 默认拉取主分支，该仓库只有 main
+          path: ollvm-clang21.0
 
-      - name: Build Hikari
+      - name: Build OLLVM-21
         run: |
-          cd Hikari-LLVM15             # 源码在根目录
+          cd ollvm-clang21.0
           mkdir build && cd build
           cmake -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DLLVM_ENABLE_PROJECTS="clang" \
             -DLLVM_TARGETS_TO_BUILD="X86" \
             -DLLVM_USE_LINKER=lld \
-            -DCMAKE_C_COMPILER=clang-15 \
-            -DCMAKE_CXX_COMPILER=clang++-15 \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
             ../llvm
           ninja -j $(nproc) clang
 
       - name: Package Artifact
         run: |
-          mkdir -p Hikari15-toolchain/bin
-          cp Hikari-LLVM15/build/bin/clang      Hikari15-toolchain/bin/
-          cp Hikari-LLVM15/build/bin/clang++    Hikari15-toolchain/bin/
-          cp Hikari-LLVM15/build/bin/clang-cl   Hikari15-toolchain/bin/
-          tar -czf Hikari15-toolchain.tar.gz Hikari15-toolchain
+          # 回到工作区根目录打包，确保上传步骤能找到文件
+          mkdir -p ollvm21-toolchain/bin
+          cp ollvm-clang21.0/build/bin/clang    ollvm21-toolchain/bin/
+          cp ollvm-clang21.0/build/bin/clang++  ollvm21-toolchain/bin/
+          cp ollvm-clang21.0/build/bin/clang-cl ollvm21-toolchain/bin/
+          tar -czf ollvm21-toolchain.tar.gz ollvm21-toolchain
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Hikari15-toolchain
-          path: Hikari15-toolchain.tar.gz
+          name: ollvm21-toolchain
+          path: ollvm21-toolchain.tar.gz
           if-no-files-found: error
