@@ -1,54 +1,49 @@
-name: Build Hikari-LLVM15 Toolchain for Windows (Stable)
+name: Build OLLVM-15 (yangyiyu08/ollvm-project)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
-    - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y ninja-build cmake git lld clang
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake git lld-15 clang-15
 
-    - name: Clone Hikari-LLVM15 Source (from mirror)
-      run: |
-        git clone --depth=1 --branch master https://github.com/HikariObfuscator/Hikari-LLVM15
-        cd Hikari-LLVM15
-        echo "Source cloned successfully"
+      - name: Checkout OLLVM Source
+        uses: actions/checkout@v4
+        with:
+          repository: yangyiyu08/ollvm-project
+          ref: llvm-15.x               # 该仓库确实存在此分支
+          path: ollvm-project
 
-    - name: Configure CMake
-      run: |
-        cd Hikari-LLVM15
-        mkdir build && cd build
-        cmake -G Ninja \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DLLVM_ENABLE_PROJECTS="clang" \
-          -DLLVM_TARGETS_TO_BUILD="X86" \
-          -DLLVM_USE_LINKER=lld \
-          -DCMAKE_C_COMPILER=clang \
-          -DCMAKE_CXX_COMPILER=clang++ \
-          ../llvm
+      - name: Build OLLVM
+        run: |
+          cd ollvm-project            # 源码在根目录
+          mkdir build && cd build
+          cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLLVM_ENABLE_PROJECTS="clang" \
+            -DLLVM_TARGETS_TO_BUILD="X86" \
+            -DLLVM_USE_LINKER=lld \
+            -DCMAKE_C_COMPILER=clang-15 \
+            -DCMAKE_CXX_COMPILER=clang++-15 \
+            ../llvm                   # 正确指向根目录下的 llvm 文件夹
+          ninja -j $(nproc) clang
 
-    - name: Build Clang
-      run: |
-        cd Hikari-LLVM15/build
-        ninja -j 2 clang
+      - name: Package Artifact
+        run: |
+          mkdir -p ollvm15-toolchain/bin
+          cp ollvm-project/build/bin/clang ollvm15-toolchain/bin/
+          cp ollvm-project/build/bin/clang++ ollvm15-toolchain/bin/
+          cp ollvm-project/build/bin/clang-cl ollvm15-toolchain/bin/
+          tar -czf ollvm15-toolchain.tar.gz ollvm15-toolchain
 
-    - name: Package for Windows
-      run: |
-        cd Hikari-LLVM15/build
-        mkdir -p ollvm-toolchain/bin
-        cp bin/clang-15 ollvm-toolchain/bin/ 2>/dev/null || cp bin/clang ollvm-toolchain/bin/
-        cp bin/clang++ ollvm-toolchain/bin/
-        cp bin/clang-cl ollvm-toolchain/bin/
-        tar -czf ../ollvm-toolchain.tar.gz ollvm-toolchain
-
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: hikari-llvm15-toolchain
-        path: Hikari-LLVM15/build/ollvm-toolchain.tar.gz
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ollvm15-toolchain
+          path: ollvm15-toolchain.tar.gz
+          if-no-files-found: error
