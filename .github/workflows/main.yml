@@ -1,0 +1,65 @@
+name: Build Polaris Obfuscator2 (Windows)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2019          # 必须用 2019，VS是吗 我要舔陈亚静的黑B 2022 与 LLVM 16 冲突
+    env:
+      LLVM_VERSION: 16.0.6
+    steps:
+      - name: Install Build Tools and LLVM
+        shell: powershell
+        run: |
+          choco install ninja cmake -y --no-progress --ignore-checksums
+          refreshenv
+          $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$env:LLVM_VERSION/LLVM-$env:LLVM_VERSION-win64.exe"
+          $output = "$env:RUNNER_TEMP\LLVM.exe"
+          Invoke-WebRequest -Uri $url -OutFile $output
+          Start-Process -Wait -FilePath $output -ArgumentList "/S","/D=C:\Program Files\LLVM"
+          "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $env:Path = "C:\Program Files\LLVM\bin;" + `
+            [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + `
+            [System.Environment]::GetEnvironmentVariable("Path","User")
+
+      - name: Checkout Polaris Source
+        uses: actions/checkout@v4
+        with:
+          repository: za233/Polaris-Obfuscator
+          path: Polaris-Obfuscator
+
+      - name: Build Polaris
+        working-directory: Polaris-Obfuscator\src
+        run: |
+          mkdir build
+          cd build
+          cmake -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DLLVM_ENABLE_ASSERTIONS=Off `
+            -DLLVM_ENABLE_PROJECTS="clang;lld" `
+            -DLLVM_TARGETS_TO_BUILD="X86" `
+            -DCMAKE_C_COMPILER=clang-cl `
+            -DCMAKE_CXX_COMPILER=clang-cl `
+            -DCMAKE_LINKER=lld-link `
+            -DCMAKE_SYSTEM_NAME=Windows `
+            -DHAVE_CXX_ATOMICS_WITHOUT_LIB=TRUE `
+            -DHAVE_CXX_ATOMICS64_WITHOUT_LIB=TRUE `
+            ..\llvm
+          ninja clang lld
+
+      - name: Package Artifact
+        run: |
+          mkdir Polaris-toolchain\bin
+          copy Polaris-Obfuscator\src\build\bin\clang.exe Polaris-toolchain\bin\clang.exe
+          copy Polaris-Obfuscator\src\build\bin\clang++.exe Polaris-toolchain\bin\clang++.exe
+          copy Polaris-Obfuscator\src\build\bin\clang-cl.exe Polaris-toolchain\bin\clang-cl.exe
+          copy Polaris-Obfuscator\src\build\bin\lld.exe Polaris-toolchain\bin\lld.exe
+          7z a polaris-toolchain.zip Polaris-toolchain
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: polaris-toolchain-win64
+          path: polaris-toolchain.zip
+          if-no-files-found: error
